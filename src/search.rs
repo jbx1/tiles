@@ -72,12 +72,6 @@ impl<S: State> Transition<S> {
     }
 }
 
-impl<S: State> Drop for Transition<S> {
-    fn drop(&mut self) {
-        print!(".");
-    }
-}
-
 impl<S : State> PartialOrd for Transition<S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -123,9 +117,7 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Priority::new();
-    let result = search(initial, goal, &mut queue);
-    println!("\r\nProcessing result at: {:?}", Instant::now());
-    result
+    search(initial, goal, &mut queue)
 }
 
 fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
