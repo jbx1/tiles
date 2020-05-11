@@ -3,6 +3,7 @@ extern crate lazy_static;
 
 use crate::board::Board;
 use crate::search::{State, SearchResult};
+use std::time::Instant;
 
 pub mod board;
 pub mod search;
@@ -57,6 +58,7 @@ pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
 
     let result = search::a_star_search(&initial_state, goal_check);
+    println!("\r\nProcessing result for search {:?}", Instant::now());
     process_result(result)
 }
 

@@ -72,6 +72,11 @@ impl<S: State> Transition<S> {
     }
 }
 
+impl<S: State> Drop for Transition<S> {
+    fn drop(&mut self) {
+        print!(".");
+    }
+}
 
 impl<S : State> PartialOrd for Transition<S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -118,7 +123,9 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Priority::new();
-    search(initial, goal, &mut queue)
+    let result = search(initial, goal, &mut queue);
+    println!("\r\nProcessing result at: {:?}", Instant::now());
+    result
 }
 
 fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
@@ -143,7 +150,10 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
         if (goal)(&transition.state()) {
             let plan = extract_plan(&transition);
             statistics.duration = start.elapsed();
-            return SearchResult{ plan: Some(plan), statistics };
+
+            let result = SearchResult{ plan: Some(plan), statistics };
+            println!("\r\nFound result at: {:?} after seeing {} unique states", Instant::now(), seen.len());
+            return result;
         }
         else {
             let parent = Rc::new(transition);
