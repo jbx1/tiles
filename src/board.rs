@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_equality() {
-        assert_eq!(Board::new([0, 1, 2, 3, 4, 5, 6, 7, 8]), GOAL);
+        assert_eq!(Board::new([1, 2, 3, 4, 5, 6, 7, 8, 0]), GOAL);
     }
 
     #[test]
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_goal() {
-        assert!(Board::new([0, 1, 2, 3, 4, 5, 6, 7, 8]).is_goal());
+        assert!(Board::new([1, 2, 3, 4, 5, 6, 7, 8, 0]).is_goal());
     }
 
     #[test]

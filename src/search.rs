@@ -131,7 +131,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     let mut statistics = Statistics { created: 1, queued: 1, expanded: 0, duration: Duration::new(0,0)};
     let start = Instant::now();
 
-    println!("Initial h value {}", initial.h());
+    println!("Starting search at time {:?} with Initial h value {}", start, initial.h());
 
     let initial_state = Rc::new(*initial);
     let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state)));
@@ -144,7 +144,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
             statistics.duration = start.elapsed();
 
             let result = SearchResult{ plan: Some(plan), statistics };
-            println!("\r\nFound result at: {:?} after seeing {} unique states", Instant::now(), seen.len());
+            println!("Found result at time {:?} after seeing {} unique states", Instant::now(), seen.len());
             return result;
         }
         else {

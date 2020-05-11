@@ -58,7 +58,7 @@ pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
 
     let result = search::a_star_search(&initial_state, goal_check);
-    println!("\r\nProcessing result for search {:?}", Instant::now());
+    println!("Processing result for search at time {:?} after all unneeded states de-allocated", Instant::now());
     process_result(result)
 }
 
@@ -76,4 +76,57 @@ fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>>{
 
         None => None
     }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use crate::board::GOAL;
+
+    #[test]
+    fn test_easy_board() {
+        let hard_board = Board::new([1, 2, 3, 4, 5, 6, 7, 0, 8]);
+
+        println!("Starting A* search for hard board 1");
+        let result = a_star_search(hard_board);
+
+        assert!(result.is_some());
+
+        if let Some(plan) = result {
+            assert_eq!(plan.len(), 2);
+            assert_eq!(*plan.last().unwrap(), GOAL);
+        }
+    }
+
+    #[test]
+    fn test_hard_board1() {
+        let hard_board = Board::new([8, 6, 7, 2, 5, 4, 3, 0, 1]);
+
+        println!("Starting A* search for hard board 1");
+        let result = a_star_search(hard_board);
+
+        assert!(result.is_some());
+
+        if let Some(plan) = result {
+            assert_eq!(plan.len(), 32);
+            assert_eq!(*plan.last().unwrap(), GOAL);
+        }
+    }
+
+    #[test]
+    fn test_hard_board2() {
+        let hard_board = Board::new([6, 4, 7, 8, 5, 0, 3, 2, 1]);
+
+        println!("Starting A* search for hard board 2");
+        let result = a_star_search(hard_board);
+
+        assert!(result.is_some());
+
+        if let Some(plan) = result {
+            assert_eq!(plan.len(), 32);
+            assert_eq!(*plan.last().unwrap(), GOAL);
+        }
+    }
+
 }
