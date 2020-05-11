@@ -9,13 +9,13 @@ use std::rc::Rc;
 use crate::search::Transition::{Action, Initial};
 
 use std::cmp::Ordering::Equal;
-use crate::search::queue::{Queue, Priority, Fifo};
+use crate::search::queue::{Queue, Fifo, PriorityCmp};
 use std::time::{Duration, Instant};
 
 #[derive(Debug)]
 pub struct SearchResult<S: State> {
     pub plan: Option<VecDeque<S>>,
-    pub statistics: Statistics
+    pub statistics: Statistics,
 }
 
 #[derive(Debug)]
@@ -23,7 +23,7 @@ pub struct Statistics {
     created: i32,
     queued: i32,
     expanded: i32,
-    duration: Duration
+    duration: Duration,
 }
 
 pub trait State: PartialEq + Eq + Hash + Sized + Copy + Debug {
@@ -33,13 +33,13 @@ pub trait State: PartialEq + Eq + Hash + Sized + Copy + Debug {
 
 #[derive(Debug, Eq)]
 enum Transition<S: State> {
-    Initial{state: Rc<S>},
-    Action {state: Rc<S>, parent: Rc<Transition<S>>, g: u32},
+    Initial { state: Rc<S> },
+    Action { state: Rc<S>, parent: Rc<Transition<S>>, g: u32, index: u32 },
 }
 
 impl<S: State> Transition<S> {
     fn new(initial: Rc<S>) -> Transition<S> {
-        Initial{state: initial}
+        Initial { state: initial }
     }
 
     fn state(&self) -> &S {
@@ -50,9 +50,9 @@ impl<S: State> Transition<S> {
     }
 
     fn parent(&self) -> Option<&Transition<S>> {
-       match self {
-            Action{  state:_, parent, g:_ } => Some(parent.as_ref()),
-            Initial{ state:_ } => None,
+        match self {
+            Action { state: _, parent, g: _, index: _ } => Some(parent.as_ref()),
+            Initial { state: _ } => None,
         }
     }
 
@@ -62,23 +62,30 @@ impl<S: State> Transition<S> {
 
     fn g(&self) -> u32 {
         match self {
-            Action{  state:_, parent:_, g } => *g,
-            Initial{ state:_ } => 0,
+            Action { state: _, parent: _, g, index: _ } => *g,
+            Initial { state: _ } => 0,
         }
     }
 
-    fn successor(state: Rc<S>, parent: Rc<Transition<S>>) -> Transition<S> {
-        Action{state, g: parent.g() + 1, parent}
+    fn index(&self) -> u32 {
+        match self {
+            Action { state: _, parent: _, g: _, index } => *index,
+            Initial { state: _ } => 0,
+        }
+    }
+
+    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index : u32) -> Transition<S> {
+        Action { state, g: parent.g() + 1, parent, index }
     }
 }
 
-impl<S : State> PartialOrd for Transition<S> {
+impl<S: State> PartialOrd for Transition<S> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<S : State> Ord for Transition<S> {
+impl<S: State> Ord for Transition<S> {
     fn cmp(&self, other: &Self) -> Ordering {
         let other_f = other.g() as f32 + other.h();
         let self_f = self.g() as f32 + self.h();
@@ -93,30 +100,38 @@ impl<S: State> PartialEq for Transition<S> {
     }
 }
 
-impl<S: State> Clone for Transition<S> {
-    fn clone(&self) -> Transition<S> {
-        match self {
-            Initial { state } => Initial { state: state.clone() },
-            Action {state, parent, g} => Action { state: state.clone(), parent: Rc::clone(parent), g: *g}
-        }
-    }
-}
-
 pub fn breadth_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Fifo::new();
     search(initial, goal, &mut queue)
 }
 
-pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
-    //todo: currently this behaves like A* because Ord comparison uses g() + h(),
-    // change to binary_heap_plus to specify custom comparator
 
-    let mut queue = Priority::new();
+pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+
+    //greedy best first search only considers the heuristic value (h)
+    let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
+        //reverse comparison to get min heap
+        s2.h().partial_cmp(&s1.h())
+            .unwrap_or_else(|| Equal)
+            .then_with(|| s2.index().cmp(&s1.index()))
+    });
+
     search(initial, goal, &mut queue)
 }
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
-    let mut queue = Priority::new();
+    //A* search considers both the distance travelled so far (g) and the heuristic value (h)
+    let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
+        //we want a min_heap, so reverse the order of comparison
+        let s1_f = s1.g() as f32 + s1.h();
+        let s2_f = s2.g() as f32 + s2.h();
+        //reverse comparison to get min heap
+        s2_f.partial_cmp(&s1_f)
+            .unwrap_or_else(|| Equal)
+            .then_with(|| s2.h().partial_cmp(&s1.h()).unwrap_or_else(|| Equal))
+            .then_with(|| s2.index().cmp(&s1.index()))
+    });
+
     search(initial, goal, &mut queue)
 }
 
@@ -128,8 +143,9 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     let mut seen = HashMap::new();
 
     // the initial state
-    let mut statistics = Statistics { created: 1, queued: 1, expanded: 0, duration: Duration::new(0,0)};
+    let mut statistics = Statistics { created: 1, queued: 1, expanded: 0, duration: Duration::new(0, 0) };
     let start = Instant::now();
+    let mut index: u32 = 0;
 
     println!("Starting search at time {:?} with Initial h value {}", start, initial.h());
 
@@ -138,23 +154,22 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     seen.insert(initial_state, Rc::clone(&initial_transition));
     queue.enqueue(initial_transition);
 
+
     while let Some(transition) = queue.dequeue() {
         if (goal)(&transition.state()) {
             let plan = extract_plan(&transition);
             statistics.duration = start.elapsed();
-
-            let result = SearchResult{ plan: Some(plan), statistics };
-            println!("Found result at time {:?} after seeing {} unique states", Instant::now(), seen.len());
-            return result;
-        }
-        else {
+            println!("Found plan at time {:?} after seeing {} unique states", Instant::now(), seen.len());
+            return SearchResult { plan: Some(plan), statistics };
+        } else {
             let parent = Rc::new(transition);
             statistics.expanded += 1;
             for successor_state in parent.state().successors() {
                 statistics.created += 1;
                 if !seen_and_better(&seen, &successor_state, parent.g() + 1) {
+                    index += 1;
                     let successor_state_rc = Rc::new(successor_state);
-                    let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc),Rc::clone(&parent)));
+                    let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&parent), index));
                     seen.insert(successor_state_rc, Rc::clone(&succ_transition));
                     queue.enqueue(succ_transition);
                     statistics.queued += 1;
@@ -164,7 +179,8 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     }
 
     statistics.duration = start.elapsed();
-    SearchResult{ plan: None, statistics }
+    println!("No plan found. At time {:?} after seeing {} unique states", Instant::now(), seen.len());
+    SearchResult { plan: None, statistics }
 }
 
 fn seen_and_better<S: State>(seen: &HashMap<Rc<S>, Rc<Transition<S>>>, state: &S, g: u32) -> bool {
@@ -201,12 +217,12 @@ mod tests {
 
     impl State for TestState {
         fn successors(&self) -> Vec<Self> {
-            vec![TestState{value: self.value+1}, TestState{ value: self.value+2}, TestState{value: self.value+3}]
+            vec![TestState { value: self.value + 1 }, TestState { value: self.value + 2 }, TestState { value: self.value + 3 }]
         }
 
         fn h(&self) -> f32 {
             if GOAL < self.value {
-                 f32::INFINITY
+                f32::INFINITY
             } else {
                 (GOAL - self.value) as f32
             }
@@ -216,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_breadth_first_search() {
-        let initial = TestState{value: 0};
+        let initial = TestState { value: 0 };
         println!("Starting Breadth First Search");
 
         let result = breadth_first_search(&initial, |state| state.value == 5);
@@ -234,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_greedy_best_first_search() {
-        let initial = TestState{value: 0};
+        let initial = TestState { value: 0 };
         println!("Starting Greedy Best First Search");
         let result = greedy_best_first_search(&initial, |state| state.value == 5);
         assert!(result.plan.is_some());
@@ -250,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_a_star_search() {
-        let initial = TestState{value: 0};
+        let initial = TestState { value: 0 };
         println!("Starting Greedy Best First Search");
         let result = a_star_search(&initial, |state| state.value == 5);
         assert!(result.plan.is_some());
