@@ -1,9 +1,10 @@
 #[macro_use]
 extern crate lazy_static;
 
-use crate::board::Board;
-use crate::search::{State, SearchResult};
 use std::time::Instant;
+
+use crate::board::Board;
+use crate::search::{SearchResult, State};
 
 pub mod board;
 pub mod search;
@@ -45,7 +46,8 @@ pub fn breadth_first_search(board: Board) -> Option<Vec<Board>> {
 
     let result = search::breadth_first_search(&initial_state, goal_check);
 
-    process_result(result)}
+    process_result(result)
+}
 
 pub fn greedy_best_first_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
@@ -62,7 +64,7 @@ pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
     process_result(result)
 }
 
-fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>>{
+fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>> {
     println!("{:?}", result.statistics);
     match result.plan {
         Some(plan_states) => {
@@ -80,9 +82,9 @@ fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>>{
 
 #[cfg(test)]
 mod tests {
+    use crate::board::GOAL;
 
     use super::*;
-    use crate::board::GOAL;
 
     #[test]
     fn test_easy_board() {
@@ -128,5 +130,4 @@ mod tests {
             assert_eq!(*plan.last().unwrap(), GOAL);
         }
     }
-
 }

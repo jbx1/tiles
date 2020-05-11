@@ -26,7 +26,6 @@ fn help() {
 
 fn main() {
 
-
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
         help();
@@ -46,10 +45,7 @@ fn main() {
         }
     }
 
-
-    //todo: read the board from the commandline
-    let hard_board = Board::new(tiles);
-
-    println!("Starting A* search for hard board");
-    process_plan(tiles::a_star_search(hard_board));
+    let board = Board::new(tiles);
+    println!("Starting A* search");
+    process_plan(tiles::a_star_search(board));
 }

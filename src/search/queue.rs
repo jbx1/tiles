@@ -1,8 +1,9 @@
-use std::collections::{VecDeque};
-use std::rc::Rc;
-use binary_heap_plus::{BinaryHeap};
 use std::cmp::Ordering;
+use std::collections::VecDeque;
 use std::ops::Deref;
+use std::rc::Rc;
+
+use binary_heap_plus::BinaryHeap;
 use compare::Compare;
 
 /// Adaptors to create a common interface for different queue implementations, such as FIFO Queue

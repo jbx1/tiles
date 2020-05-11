@@ -1,16 +1,15 @@
-pub mod queue;
-
 use std::cmp::Ordering;
-use std::collections::{VecDeque, HashMap};
-use std::fmt::{Debug};
+use std::cmp::Ordering::Equal;
+use std::collections::{HashMap, VecDeque};
+use std::fmt::Debug;
 use std::hash::Hash;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
+use crate::search::queue::{Fifo, PriorityCmp, Queue};
 use crate::search::Transition::{Action, Initial};
 
-use std::cmp::Ordering::Equal;
-use crate::search::queue::{Queue, Fifo, PriorityCmp};
-use std::time::{Duration, Instant};
+pub mod queue;
 
 #[derive(Debug)]
 pub struct SearchResult<S: State> {
@@ -74,7 +73,7 @@ impl<S: State> Transition<S> {
         }
     }
 
-    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index : u32) -> Transition<S> {
+    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32) -> Transition<S> {
         Action { state, g: parent.g() + 1, parent, index }
     }
 }
@@ -120,9 +119,8 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
 }
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
-    //A* search considers both the distance travelled so far (g) and the heuristic value (h)
+    //A* search considers both the distance travelled so far (g) + the heuristic value (h)
     let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
-        //we want a min_heap, so reverse the order of comparison
         let s1_f = s1.g() as f32 + s1.h();
         let s2_f = s2.g() as f32 + s2.h();
         //reverse comparison to get min heap
@@ -153,7 +151,6 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state)));
     seen.insert(initial_state, Rc::clone(&initial_transition));
     queue.enqueue(initial_transition);
-
 
     while let Some(transition) = queue.dequeue() {
         if (goal)(&transition.state()) {
