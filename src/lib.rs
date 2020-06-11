@@ -6,12 +6,13 @@ use std::time::Instant;
 use crate::board::Board;
 use crate::search::{SearchResult, State};
 
-pub mod board;
+pub mod queue;
 pub mod search;
+pub mod board;
 
 #[derive(Hash, Debug, Copy, Clone, Eq, PartialEq)]
 struct BoardState {
-    board: Board
+    board: Board,
 }
 
 impl BoardState {
@@ -43,29 +44,24 @@ fn goal_check(candidate: &BoardState) -> bool {
 
 pub fn breadth_first_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
-
     let result = search::breadth_first_search(&initial_state, goal_check);
-
     process_result(result)
 }
 
 pub fn greedy_best_first_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
-
     let result = search::greedy_best_first_search(&initial_state, goal_check);
     process_result(result)
 }
 
 pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
-
     let result = search::a_star_search(&initial_state, goal_check);
-    println!("Processing result for search at time {:?} after all unneeded states de-allocated", Instant::now());
     process_result(result)
 }
 
 fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>> {
-    println!("{:?}", result.statistics);
+    println!("{:?} {:?}", Instant::now(), result.statistics);
     match result.plan {
         Some(plan_states) => {
             let mut plan = Vec::with_capacity(plan_states.len());

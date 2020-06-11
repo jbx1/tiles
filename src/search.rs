@@ -6,10 +6,8 @@ use std::hash::Hash;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use crate::search::queue::{Fifo, PriorityCmp, Queue};
+use crate::queue::{Fifo, PriorityCmp, Queue};
 use crate::search::Transition::{Action, Initial};
-
-pub mod queue;
 
 #[derive(Debug)]
 pub struct SearchResult<S: State> {
