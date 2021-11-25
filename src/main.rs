@@ -46,6 +46,8 @@ fn main() {
     }
 
     let board = Board::new(tiles);
+    println!("Using Manhattan Distance heuristic");
+
     println!("Starting A* search");
     process_plan(tiles::a_star_search(board));
 }

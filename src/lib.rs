@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::time::Instant;
-
 use crate::board::Board;
 use crate::search::{SearchResult, State};
 
@@ -61,7 +59,7 @@ pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
 }
 
 fn process_result(result: SearchResult<BoardState>) -> Option<Vec<Board>> {
-    println!("{:?} {:?}", Instant::now(), result.statistics);
+    println!("{:?}", result.statistics);
     match result.plan {
         Some(plan_states) => {
             let mut plan = Vec::with_capacity(plan_states.len());
