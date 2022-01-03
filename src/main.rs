@@ -50,4 +50,8 @@ fn main() {
 
     println!("Starting A* search");
     process_plan(tiles::a_star_search(board));
+
+    // println!("Starting Breadth First Search search");
+    // process_plan(tiles::breadth_first_search(board));
+
 }

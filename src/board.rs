@@ -86,8 +86,10 @@ impl Board {
     pub fn manhattan_dist(&self) -> i32 {
         let mut distance = 0;
         for (index, tile) in self.tiles.iter().enumerate() {
-            let goal_tile_pos = GOAL_MAP.get(&tile).unwrap();
-            distance += manhattan_dist_positions(index, *goal_tile_pos);
+            if *tile > 0 {
+                let goal_tile_pos = GOAL_MAP.get(&tile).unwrap();
+                distance += manhattan_dist_positions(index, *goal_tile_pos);
+            }
         }
 
         distance
