@@ -99,9 +99,13 @@ impl<S: State> PartialEq for Transition<S> {
 
 pub fn breadth_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue)
+    search(initial, goal, &mut queue, false)
 }
 
+pub fn ehc_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+    let mut queue = Fifo::new();
+    search(initial, goal, &mut queue, true)
+}
 
 pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
 
@@ -113,7 +117,7 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue)
+    search(initial, goal, &mut queue, false)
 }
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
@@ -128,10 +132,10 @@ pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> Searc
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue)
+    search(initial, goal, &mut queue, false)
 }
 
-fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
+fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, ehc: bool) -> SearchResult<S>
     where S: State,
           F: Fn(&S) -> bool,
           Q: Queue<Transition<S>>
@@ -143,7 +147,9 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     let start = Instant::now();
     let mut index: u32 = 0;
 
-    println!("Starting search at time {:?} with Initial h value {}", start, initial.h());
+    println!("Starting search with Initial h value {}", initial.h());
+    let mut best_h = initial.h();
+    print!("Current best H: {:?} ", best_h);
 
     let initial_state = Rc::new(*initial);
     let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state)));
@@ -154,20 +160,36 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
         if (goal)(&transition.state()) {
             let plan = extract_plan(&transition);
             statistics.duration = start.elapsed();
-            println!("Found plan at time {:?} after seeing {} unique states", Instant::now(), seen.len());
+            println!("\nFound plan after seeing {} unique states", seen.len());
             return SearchResult { plan: Some(plan), statistics };
         } else {
-            let parent = Rc::new(transition);
             statistics.expanded += 1;
-            for successor_state in parent.state().successors() {
+            let mut skip_siblings = false;
+            for successor_state in transition.state().successors() {
                 statistics.created += 1;
-                if !seen_and_better(&seen, &successor_state, parent.g() + 1) {
+                if !seen_and_better(&seen, &successor_state, transition.g() + 1) {
                     index += 1;
                     let successor_state_rc = Rc::new(successor_state);
-                    let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&parent), index));
+                    let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index));
                     seen.insert(successor_state_rc, Rc::clone(&succ_transition));
+
+                    let current_h = successor_state.h();
+                    if current_h < best_h {
+                        print!("{:?} ", current_h);
+                        best_h = current_h;
+
+                        if ehc {
+                            queue.clear();
+                            skip_siblings = true;
+                        }
+                    }
+
                     queue.enqueue(succ_transition);
                     statistics.queued += 1;
+
+                    if skip_siblings {
+                        break;
+                    }
                 }
             }
         }
@@ -178,9 +200,10 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q) -> SearchResult<S>
     SearchResult { plan: None, statistics }
 }
 
+
 fn seen_and_better<S: State>(seen: &HashMap<Rc<S>, Rc<Transition<S>>>, state: &S, g: u32) -> bool {
     match seen.get(state) {
-        Some(transition) if transition.g() < g + 1 => true,
+        Some(seen_transition) if seen_transition.g() <= g => true,
         _ => false
     }
 }
@@ -242,6 +265,25 @@ mod tests {
         let goal = plan.get(plan.len() - 1).unwrap();
         assert_eq!(goal.value, GOAL);
     }
+
+    #[test]
+    fn test_ehc_search() {
+        let initial = TestState { value: 0 };
+        println!("Starting EHC Search");
+
+        let result = ehc_search(&initial, |state| state.value == 5);
+
+        assert!(result.plan.is_some());
+
+        let plan = result.plan.unwrap();
+        assert!(plan.len() > 0);
+
+        println!("Plan: {:?}", plan);
+
+        let goal = plan.get(plan.len() - 1).unwrap();
+        assert_eq!(goal.value, GOAL);
+    }
+
 
     #[test]
     fn test_greedy_best_first_search() {

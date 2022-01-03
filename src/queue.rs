@@ -14,6 +14,7 @@ pub trait Queue<T>: Sized {
     fn dequeue(&mut self) -> Option<Rc<T>>;
     fn is_empty(&self) -> bool;
     fn len(&self) -> usize;
+    fn clear(&mut self);
 }
 
 // Classic FIFO queue
@@ -43,6 +44,10 @@ impl<T> Queue<T> for Fifo<T> {
     fn len(&self) -> usize {
         self.queue.len()
     }
+
+    fn clear(&mut self) {
+        self.queue.clear();
+    }
 }
 
 //Priority Queue with Ord comparison
@@ -71,6 +76,10 @@ impl<T: Ord> Queue<T> for Priority<T> {
 
     fn len(&self) -> usize {
         self.queue.len()
+    }
+
+    fn clear(&mut self) {
+        self.queue.clear();
     }
 }
 
@@ -120,5 +129,9 @@ impl<T, F> Queue<T> for PriorityCmp<T, F>
 
     fn len(&self) -> usize {
         self.queue.len()
+    }
+
+    fn clear(&mut self) {
+        self.queue.clear();
     }
 }
