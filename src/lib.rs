@@ -10,7 +10,7 @@ pub mod board;
 
 #[derive(Hash, Debug, Copy, Clone, Eq, PartialEq)]
 struct BoardState {
-    board: Board,
+    board: Board
 }
 
 impl BoardState {
@@ -21,17 +21,14 @@ impl BoardState {
 
 impl State for BoardState {
     fn successors(&self) -> Vec<Self> {
-        let successor_boards = self.board.successors();
-        let mut successor_states = Vec::with_capacity(successor_boards.len());
-
-        for successor in self.board.successors() {
-            successor_states.push(BoardState::new(successor));
-        }
-
-        successor_states
+        self.board.successors()
+            .iter()
+            .map(|board| BoardState::new(*board))
+            .collect()
     }
 
     fn h(&self) -> f32 {
+        //todo: cache this once computed, or move it out completely
         self.board.manhattan_dist() as f32
     }
 }
@@ -49,6 +46,12 @@ pub fn breadth_first_search(board: Board) -> Option<Vec<Board>> {
 pub fn ehc_search(board: Board) -> Option<Vec<Board>> {
     let initial_state = BoardState::new(board);
     let result = search::ehc_search(&initial_state, goal_check);
+    process_result(result)
+}
+
+pub fn ehc_steepest_search(board: Board) -> Option<Vec<Board>> {
+    let initial_state = BoardState::new(board);
+    let result = search::ehc_steepest_search(&initial_state, goal_check);
     process_result(result)
 }
 
@@ -136,6 +139,30 @@ mod tests {
 
         println!("Starting EHC search for hard board 2:\n{}", hard_board);
         let result = ehc_search(hard_board);
+
+        expect_plan(result, 46);
+    }
+
+    #[test]
+    fn test_hard_board1_ehc_steepest() {
+        let tiles = [8, 6, 7, 2, 5, 4, 3, 0, 1];
+        println!("Tiles: {:?}", tiles);
+        let hard_board = Board::new(tiles);
+
+        println!("Starting EHC search for hard board 1:\n{}", hard_board);
+        let result = ehc_steepest_search(hard_board);
+
+        expect_plan(result, 46);
+    }
+
+    #[test]
+    fn test_hard_board2_ehc_steepest() {
+        let tiles = [6, 4, 7, 8, 5, 0, 3, 2, 1];
+        println!("Tiles: {:?}", tiles);
+        let hard_board = Board::new(tiles);
+
+        println!("Starting EHC search for hard board 2:\n{}", hard_board);
+        let result = ehc_steepest_search(hard_board);
 
         expect_plan(result, 46);
     }

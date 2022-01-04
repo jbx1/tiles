@@ -10,6 +10,26 @@ use crate::queue::{Fifo, PriorityCmp, Queue};
 use crate::search::Transition::{Action, Initial};
 
 #[derive(Debug)]
+pub struct SearchConfig {
+    ehc: bool,
+    best_first_successors: bool,
+}
+
+impl SearchConfig {
+    fn default() -> SearchConfig {
+        SearchConfig { ehc: false, best_first_successors: false }
+    }
+
+    fn ehc() -> SearchConfig {
+        SearchConfig { ehc: true, best_first_successors: false }
+    }
+
+    fn ehc_steepest_ascent() -> SearchConfig {
+        SearchConfig { ehc: true, best_first_successors: true }
+    }
+}
+
+#[derive(Debug)]
 pub struct SearchResult<S: State> {
     pub plan: Option<VecDeque<S>>,
     pub statistics: Statistics,
@@ -99,12 +119,17 @@ impl<S: State> PartialEq for Transition<S> {
 
 pub fn breadth_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, false)
+    search(initial, goal, &mut queue, SearchConfig::default())
 }
 
 pub fn ehc_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, true)
+    search(initial, goal, &mut queue, SearchConfig::ehc())
+}
+
+pub fn ehc_steepest_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+    let mut queue = Fifo::new();
+    search(initial, goal, &mut queue, SearchConfig::ehc_steepest_ascent())
 }
 
 pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
@@ -117,7 +142,7 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue, false)
+    search(initial, goal, &mut queue, SearchConfig::default())
 }
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
@@ -132,10 +157,10 @@ pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> Searc
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue, false)
+    search(initial, goal, &mut queue, SearchConfig::default())
 }
 
-fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, ehc: bool) -> SearchResult<S>
+fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) -> SearchResult<S>
     where S: State,
           F: Fn(&S) -> bool,
           Q: Queue<Transition<S>>
@@ -165,31 +190,39 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, ehc: bool) -> SearchResu
         } else {
             statistics.expanded += 1;
             let mut skip_siblings = false;
-            for successor_state in transition.state().successors() {
+
+            let mut successors: Vec<S> = transition.state().successors()
+                .into_iter()
+                .filter(|successor| !seen_and_better(&seen, &successor, transition.g() + 1))
+                .collect();
+
+            if config.best_first_successors {
+                successors.sort_by(|a, b| a.h().partial_cmp(&b.h()).unwrap());
+            }
+
+            for successor_state in successors {
                 statistics.created += 1;
-                if !seen_and_better(&seen, &successor_state, transition.g() + 1) {
-                    index += 1;
-                    let successor_state_rc = Rc::new(successor_state);
-                    let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index));
-                    seen.insert(successor_state_rc, Rc::clone(&succ_transition));
+                index += 1;
+                let successor_state_rc = Rc::new(successor_state);
+                let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index));
+                seen.insert(successor_state_rc, Rc::clone(&succ_transition));
 
-                    let current_h = successor_state.h();
-                    if current_h < best_h {
-                        print!("{:?} ", current_h);
-                        best_h = current_h;
+                let current_h = successor_state.h();
+                if current_h < best_h {
+                    print!("{:?} ", current_h);
+                    best_h = current_h;
 
-                        if ehc {
-                            queue.clear();
-                            skip_siblings = true;
-                        }
+                    if config.ehc {
+                        queue.clear();
+                        skip_siblings = true;
                     }
+                }
 
-                    queue.enqueue(succ_transition);
-                    statistics.queued += 1;
+                queue.enqueue(succ_transition);
+                statistics.queued += 1;
 
-                    if skip_siblings {
-                        break;
-                    }
+                if skip_siblings {
+                    break;
                 }
             }
         }
@@ -284,6 +317,23 @@ mod tests {
         assert_eq!(goal.value, GOAL);
     }
 
+    #[test]
+    fn test_ehc_steepest_search() {
+        let initial = TestState { value: 0 };
+        println!("Starting EHC Steepest Ascent Search");
+
+        let result = ehc_steepest_search(&initial, |state| state.value == 5);
+
+        assert!(result.plan.is_some());
+
+        let plan = result.plan.unwrap();
+        assert!(plan.len() > 0);
+
+        println!("Plan: {:?}", plan);
+
+        let goal = plan.get(plan.len() - 1).unwrap();
+        assert_eq!(goal.value, GOAL);
+    }
 
     #[test]
     fn test_greedy_best_first_search() {
