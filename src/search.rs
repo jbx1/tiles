@@ -45,54 +45,59 @@ pub struct Statistics {
 
 pub trait State: PartialEq + Eq + Hash + Sized + Copy + Debug {
     fn successors(&self) -> Vec<Self>;
-    fn h(&self) -> f32;
+    fn h(&self) -> i32;
 }
 
 #[derive(Debug, Eq)]
 enum Transition<S: State> {
-    Initial { state: Rc<S> },
-    Action { state: Rc<S>, parent: Rc<Transition<S>>, g: u32, index: u32 },
+    Initial { state: Rc<S>, h: i32 },
+    Action { state: Rc<S>, parent: Rc<Transition<S>>, g: u32, index: u32, h: i32 },
 }
 
 impl<S: State> Transition<S> {
     fn new(initial: Rc<S>) -> Transition<S> {
-        Initial { state: initial }
+        let h = initial.h();
+        Initial { state: initial, h }
     }
 
     fn state(&self) -> &S {
         match self {
-            Initial { state } => &state,
+            Initial { state, .. } => &state,
             Action { state, .. } => &state
         }
     }
 
     fn parent(&self) -> Option<&Transition<S>> {
         match self {
-            Action { state: _, parent, g: _, index: _ } => Some(parent.as_ref()),
-            Initial { state: _ } => None,
+            Action { parent, .. } => Some(parent.as_ref()),
+            Initial { .. } => None,
         }
     }
 
-    fn h(&self) -> f32 {
-        self.state().h()
+    fn h(&self) -> i32 {
+        match self {
+            Initial { h, ..} => *h,
+            Action { h, .. } => *h
+        }
     }
 
     fn g(&self) -> u32 {
         match self {
-            Action { state: _, parent: _, g, index: _ } => *g,
-            Initial { state: _ } => 0,
+            Action { g, .. } => *g,
+            Initial { .. } => 0,
         }
     }
 
     fn index(&self) -> u32 {
         match self {
-            Action { state: _, parent: _, g: _, index } => *index,
-            Initial { state: _ } => 0,
+            Action { index, .. } => *index,
+            Initial { .. } => 0,
         }
     }
 
     fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32) -> Transition<S> {
-        Action { state, g: parent.g() + 1, parent, index }
+        let h = state.h();
+        Action { state, g: parent.g() + 1, parent, index, h }
     }
 }
 
@@ -104,8 +109,8 @@ impl<S: State> PartialOrd for Transition<S> {
 
 impl<S: State> Ord for Transition<S> {
     fn cmp(&self, other: &Self) -> Ordering {
-        let other_f = other.g() as f32 + other.h();
-        let self_f = self.g() as f32 + self.h();
+        let other_f = other.g() as i32 + other.h();
+        let self_f = self.g() as i32 + self.h();
 
         other_f.partial_cmp(&self_f).unwrap_or_else(|| Equal)
     }
@@ -148,8 +153,8 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     //A* search considers both the distance travelled so far (g) + the heuristic value (h)
     let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
-        let s1_f = s1.g() as f32 + s1.h();
-        let s2_f = s2.g() as f32 + s2.h();
+        let s1_f = s1.g() as i32 + s1.h();
+        let s2_f = s2.g() as i32 + s2.h();
         //reverse comparison to get min heap
         s2_f.partial_cmp(&s1_f)
             .unwrap_or_else(|| Equal)
@@ -172,12 +177,13 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
     let start = Instant::now();
     let mut index: u32 = 0;
 
-    println!("Starting search with Initial h value {}", initial.h());
-    let mut best_h = initial.h();
-    print!("Current best H: {:?} ", best_h);
-
     let initial_state = Rc::new(*initial);
     let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state)));
+    println!("Starting search with Initial h value {}", initial_transition.h());
+
+    let mut best_h = initial_transition.h();
+    print!("Current best H: {:?} ", best_h);
+
     seen.insert(initial_state, Rc::clone(&initial_transition));
     queue.enqueue(initial_transition);
 
@@ -197,6 +203,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
                 .collect();
 
             if config.best_first_successors {
+                //todo: we are computing this again in the Transition twice, can we avoid it?
                 successors.sort_by(|a, b| a.h().partial_cmp(&b.h()).unwrap());
             }
 
@@ -207,7 +214,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
                 let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index));
                 seen.insert(successor_state_rc, Rc::clone(&succ_transition));
 
-                let current_h = successor_state.h();
+                let current_h = succ_transition.h();
                 if current_h < best_h {
                     print!("{:?} ", current_h);
                     best_h = current_h;
@@ -271,11 +278,11 @@ mod tests {
             vec![TestState { value: self.value + 1 }, TestState { value: self.value + 2 }, TestState { value: self.value + 3 }]
         }
 
-        fn h(&self) -> f32 {
+        fn h(&self) -> i32 {
             if GOAL < self.value {
-                f32::INFINITY
+                i32::MAX
             } else {
-                (GOAL - self.value) as f32
+                GOAL - self.value
             }
         }
     }

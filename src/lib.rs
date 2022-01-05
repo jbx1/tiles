@@ -27,9 +27,8 @@ impl State for BoardState {
             .collect()
     }
 
-    fn h(&self) -> f32 {
-        //todo: cache this once computed, or move it out completely
-        self.board.manhattan_dist() as f32
+    fn h(&self) -> i32 {
+        self.board.manhattan_dist() as i32
     }
 }
 
@@ -149,7 +148,7 @@ mod tests {
         println!("Tiles: {:?}", tiles);
         let hard_board = Board::new(tiles);
 
-        println!("Starting EHC search for hard board 1:\n{}", hard_board);
+        println!("Starting EHC steepest search for hard board 1:\n{}", hard_board);
         let result = ehc_steepest_search(hard_board);
 
         expect_plan(result, 46);
@@ -161,7 +160,7 @@ mod tests {
         println!("Tiles: {:?}", tiles);
         let hard_board = Board::new(tiles);
 
-        println!("Starting EHC search for hard board 2:\n{}", hard_board);
+        println!("Starting EHC steepest search for hard board 2:\n{}", hard_board);
         let result = ehc_steepest_search(hard_board);
 
         expect_plan(result, 46);
