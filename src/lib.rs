@@ -28,7 +28,9 @@ impl State for BoardState {
     }
 
     fn h(&self) -> i32 {
-        self.board.manhattan_dist() as i32
+        //todo: make the heuristic configurable
+        self.board.manhattan_dist()
+//        self.board.displaced_tiles()
     }
 }
 
@@ -97,6 +99,48 @@ mod tests {
 
         expect_plan(result, 2);
     }
+
+    #[test]
+    fn test_hard_board1_breadth_first_search() {
+        let hard_board = Board::new([8, 6, 7, 2, 5, 4, 3, 0, 1]);
+
+        println!("Starting Breadth First search for hard board 1:\n{}", hard_board);
+        let result = breadth_first_search(hard_board);
+
+        expect_plan(result, 32);
+    }
+
+    #[test]
+    fn test_hard_board2_breadth_first_search() {
+        let hard_board = Board::new([6, 4, 7, 8, 5, 0, 3, 2, 1]);
+
+        println!("Starting Breadth First search for hard board 2:\n{}", hard_board);
+        let result = breadth_first_search(hard_board);
+
+        expect_plan(result, 32);
+    }
+
+
+    #[test]
+    fn test_hard_board1_greedy_bfs() {
+        let hard_board = Board::new([8, 6, 7, 2, 5, 4, 3, 0, 1]);
+
+        println!("Starting Greedy Best First search for hard board 1:\n{}", hard_board);
+        let result = greedy_best_first_search(hard_board);
+
+        expect_plan(result, 48);
+    }
+
+    #[test]
+    fn test_hard_board2_greedy_bfs() {
+        let hard_board = Board::new([6, 4, 7, 8, 5, 0, 3, 2, 1]);
+
+        println!("Starting Greedy Best first search for hard board 2:\n{}", hard_board);
+        let result = greedy_best_first_search(hard_board);
+
+        expect_plan(result, 48);
+    }
+
 
     #[test]
     fn test_hard_board1_a_star() {

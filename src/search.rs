@@ -11,21 +11,26 @@ use crate::search::Transition::{Action, Initial};
 
 #[derive(Debug)]
 pub struct SearchConfig {
+    compute_heuristic: bool,
     ehc: bool,
     best_first_successors: bool,
 }
 
 impl SearchConfig {
     fn default() -> SearchConfig {
-        SearchConfig { ehc: false, best_first_successors: false }
+        SearchConfig { compute_heuristic: true, ehc: false, best_first_successors: false }
+    }
+
+    fn blind() -> SearchConfig {
+        SearchConfig { compute_heuristic: false, ehc: false, best_first_successors: false }
     }
 
     fn ehc() -> SearchConfig {
-        SearchConfig { ehc: true, best_first_successors: false }
+        SearchConfig { compute_heuristic: true, ehc: true, best_first_successors: false }
     }
 
     fn ehc_steepest_ascent() -> SearchConfig {
-        SearchConfig { ehc: true, best_first_successors: true }
+        SearchConfig { compute_heuristic: true, ehc: true, best_first_successors: true }
     }
 }
 
@@ -55,8 +60,14 @@ enum Transition<S: State> {
 }
 
 impl<S: State> Transition<S> {
-    fn new(initial: Rc<S>) -> Transition<S> {
-        let h = initial.h();
+    fn new(initial: Rc<S>, compute_heuristic : bool) -> Transition<S> {
+        let h = if compute_heuristic {
+            initial.h()
+        }
+        else {
+            0
+        };
+
         Initial { state: initial, h }
     }
 
@@ -95,8 +106,13 @@ impl<S: State> Transition<S> {
         }
     }
 
-    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32) -> Transition<S> {
-        let h = state.h();
+    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32, compute_heuristic: bool) -> Transition<S> {
+        let h = if compute_heuristic {
+            state.h()
+        } else {
+            parent.h()
+        };
+
         Action { state, g: parent.g() + 1, parent, index, h }
     }
 }
@@ -124,7 +140,7 @@ impl<S: State> PartialEq for Transition<S> {
 
 pub fn breadth_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, SearchConfig::default())
+    search(initial, goal, &mut queue, SearchConfig::blind())
 }
 
 pub fn ehc_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
@@ -151,10 +167,9 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
 }
 
 pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
-    //A* search considers both the distance travelled so far (g) + the heuristic value (h)
     let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
-        let s1_f = s1.g() as i32 + s1.h();
-        let s2_f = s2.g() as i32 + s2.h();
+        let s1_f = a_star_eval(s1);
+        let s2_f = a_star_eval(s2);
         //reverse comparison to get min heap
         s2_f.partial_cmp(&s1_f)
             .unwrap_or_else(|| Equal)
@@ -163,6 +178,17 @@ pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> Searc
     });
 
     search(initial, goal, &mut queue, SearchConfig::default())
+}
+
+fn a_star_eval<S: State>(state_transition: &Transition<S>) -> i32 {
+    //A* search considers both the distance travelled so far (g) + the heuristic value (h)
+    //but if the h() is too high (used sometimes to indicate goal is unreachable), we have to be careful of overflow panics
+    if i32::MAX - state_transition.h() <= state_transition.g() as i32 {
+        i32::MAX
+    }
+    else {
+        state_transition.h() + state_transition.g() as i32
+    }
 }
 
 fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) -> SearchResult<S>
@@ -178,11 +204,13 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
     let mut index: u32 = 0;
 
     let initial_state = Rc::new(*initial);
-    let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state)));
+    let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state),  config.compute_heuristic));
     println!("Starting search with Initial h value {}", initial_transition.h());
 
     let mut best_h = initial_transition.h();
-    print!("Current best H: {:?} ", best_h);
+    if config.compute_heuristic {
+        print!("Current best H: {:?} ", best_h);
+    }
 
     seen.insert(initial_state, Rc::clone(&initial_transition));
     queue.enqueue(initial_transition);
@@ -202,7 +230,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
                 .filter(|successor| !seen_and_better(&seen, &successor, transition.g() + 1))
                 .collect();
 
-            if config.best_first_successors {
+            if config.compute_heuristic && config.best_first_successors {
                 //todo: we are computing this again in the Transition twice, can we avoid it?
                 successors.sort_by(|a, b| a.h().partial_cmp(&b.h()).unwrap());
             }
@@ -211,7 +239,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
                 statistics.created += 1;
                 index += 1;
                 let successor_state_rc = Rc::new(successor_state);
-                let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index));
+                let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index, config.compute_heuristic));
                 seen.insert(successor_state_rc, Rc::clone(&succ_transition));
 
                 let current_h = succ_transition.h();

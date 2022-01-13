@@ -94,6 +94,20 @@ impl Board {
 
         distance
     }
+
+    pub fn displaced_tiles(&self) -> i32 {
+        let mut displaced = 0;
+        for (index, tile) in self.tiles.iter().enumerate() {
+            if *tile > 0 {
+                let goal_tile_pos = GOAL_MAP.get(&tile).unwrap();
+                if *goal_tile_pos != index {
+                    displaced += 1;
+                }
+            }
+        }
+
+        displaced
+    }
 }
 
 impl PartialEq for Board {
@@ -273,5 +287,69 @@ mod tests {
         assert_eq!(successors.len(), 2);
         assert!(successors.contains(&Board::new([1, 2, 3, 4, 5, 6, 7, 0, 8])));
         assert!(successors.contains(&Board::new([1, 2, 3, 4, 5, 0, 7, 8, 6])));
+    }
+
+    #[test]
+    fn test_manhattan_dist_positions() {
+        //all positions from 0
+        assert_eq!(0, manhattan_dist_positions(0, 0));
+        assert_eq!(1, manhattan_dist_positions(0, 1));
+        assert_eq!(2, manhattan_dist_positions(0, 2));
+        assert_eq!(1, manhattan_dist_positions(0, 3));
+        assert_eq!(2, manhattan_dist_positions(0, 4));
+        assert_eq!(3, manhattan_dist_positions(0, 5));
+        assert_eq!(2, manhattan_dist_positions(0, 6));
+        assert_eq!(3, manhattan_dist_positions(0, 7));
+        assert_eq!(4, manhattan_dist_positions(0, 8));
+
+        //from all positions to 0
+        assert_eq!(1, manhattan_dist_positions(1, 0));
+        assert_eq!(2, manhattan_dist_positions(2, 0));
+        assert_eq!(1, manhattan_dist_positions(3, 0));
+        assert_eq!(2, manhattan_dist_positions(4, 0));
+        assert_eq!(3, manhattan_dist_positions(5, 0));
+        assert_eq!(2, manhattan_dist_positions(6, 0));
+        assert_eq!(3, manhattan_dist_positions(7, 0));
+        assert_eq!(4, manhattan_dist_positions(8, 0));
+
+        //opposite diagonal
+        assert_eq!(2, manhattan_dist_positions(2, 4));
+        assert_eq!(2, manhattan_dist_positions(4, 2));
+        assert_eq!(4, manhattan_dist_positions(2, 6));
+        assert_eq!(4, manhattan_dist_positions(6, 2));
+
+        //horizontal middle
+        assert_eq!(1, manhattan_dist_positions(3, 4));
+        assert_eq!(1, manhattan_dist_positions(4, 3));
+        assert_eq!(2, manhattan_dist_positions(3, 5));
+        assert_eq!(2, manhattan_dist_positions(5, 3));
+
+        //vertical middle
+        assert_eq!(1, manhattan_dist_positions(1, 4));
+        assert_eq!(1, manhattan_dist_positions(4, 1));
+        assert_eq!(2, manhattan_dist_positions(1, 7));
+        assert_eq!(2, manhattan_dist_positions(7, 1));
+    }
+
+    #[test]
+    fn test_manhattan_distance() {
+        assert_eq!(0, Board::new([1, 2, 3, 4, 5, 6, 7, 8, 0]).manhattan_dist());
+        assert_eq!(1, Board::new([1, 2, 3, 4, 5, 6, 7, 0, 8]).manhattan_dist());
+        assert_eq!(2,  Board::new([1, 2, 3, 4, 0, 6, 7, 5, 8]).manhattan_dist());
+        assert_eq!(3, Board::new([1, 2, 3, 0, 4, 6, 7, 5, 8]).manhattan_dist());
+        assert_eq!(4,  Board::new([1, 2, 3, 7, 4, 6, 0, 5, 8]).manhattan_dist());
+        assert_eq!(5, Board::new([1, 2, 3, 7, 4, 6, 5, 0, 8]).manhattan_dist());
+        assert_eq!(4, Board::new([1, 2, 3, 7, 4, 6, 5, 8, 0]).manhattan_dist());
+    }
+
+    #[test]
+    fn test_displaced_tiles() {
+        assert_eq!(0, Board::new([1, 2, 3, 4, 5, 6, 7, 8, 0]).displaced_tiles());
+        assert_eq!(1, Board::new([1, 2, 3, 4, 5, 6, 7, 0, 8]).displaced_tiles());
+        assert_eq!(2,  Board::new([1, 2, 3, 4, 0, 6, 7, 5, 8]).displaced_tiles());
+        assert_eq!(3, Board::new([1, 2, 3, 0, 4, 6, 7, 5, 8]).displaced_tiles());
+        assert_eq!(4,  Board::new([1, 2, 3, 7, 4, 6, 0, 5, 8]).displaced_tiles());
+        assert_eq!(4, Board::new([1, 2, 3, 7, 4, 6, 5, 0, 8]).displaced_tiles());
+        assert_eq!(3, Board::new([1, 2, 3, 7, 4, 6, 5, 8, 0]).displaced_tiles());
     }
 }
