@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::queue::{Fifo, PriorityCmp, Queue};
-use crate::search::Transition::{Action, Initial};
+use crate::search::Transition::{Intermediate, Initial};
 
 #[derive(Debug)]
 pub struct SearchConfig {
@@ -36,6 +36,7 @@ impl SearchConfig {
 
 #[derive(Debug)]
 pub struct SearchResult<S: State> {
+    //todo: change the plan to contain transitions of S to know what the action was
     pub plan: Option<VecDeque<S>>,
     pub statistics: Statistics,
 }
@@ -56,7 +57,7 @@ pub trait State: PartialEq + Eq + Hash + Sized + Copy + Debug {
 #[derive(Debug, Eq)]
 enum Transition<S: State> {
     Initial { state: Rc<S>, h: i32 },
-    Action { state: Rc<S>, parent: Rc<Transition<S>>, g: u32, index: u32, h: i32 },
+    Intermediate { state: Rc<S>, parent: Rc<Transition<S>>, g: u32, index: u32, h: i32 },
 }
 
 impl<S: State> Transition<S> {
@@ -74,13 +75,13 @@ impl<S: State> Transition<S> {
     fn state(&self) -> &S {
         match self {
             Initial { state, .. } => &state,
-            Action { state, .. } => &state
+            Intermediate { state, .. } => &state
         }
     }
 
     fn parent(&self) -> Option<&Transition<S>> {
         match self {
-            Action { parent, .. } => Some(parent.as_ref()),
+            Intermediate { parent, .. } => Some(parent.as_ref()),
             Initial { .. } => None,
         }
     }
@@ -88,20 +89,20 @@ impl<S: State> Transition<S> {
     fn h(&self) -> i32 {
         match self {
             Initial { h, ..} => *h,
-            Action { h, .. } => *h
+            Intermediate { h, .. } => *h
         }
     }
 
     fn g(&self) -> u32 {
         match self {
-            Action { g, .. } => *g,
+            Intermediate { g, .. } => *g,
             Initial { .. } => 0,
         }
     }
 
     fn index(&self) -> u32 {
         match self {
-            Action { index, .. } => *index,
+            Intermediate { index, .. } => *index,
             Initial { .. } => 0,
         }
     }
@@ -113,7 +114,7 @@ impl<S: State> Transition<S> {
             parent.h()
         };
 
-        Action { state, g: parent.g() + 1, parent, index, h }
+        Intermediate { state, g: parent.g() + 1, parent, index, h }
     }
 }
 
@@ -216,7 +217,7 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
     queue.enqueue(initial_transition);
 
     while let Some(transition) = queue.dequeue() {
-        if (goal)(&transition.state()) {
+        if goal(&transition.state()) {
             let plan = extract_plan(&transition);
             statistics.duration = start.elapsed();
             println!("\nFound plan after seeing {} unique states", seen.len());

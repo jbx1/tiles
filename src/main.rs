@@ -5,7 +5,7 @@ use std::process::exit;
 fn process_plan(plan_opt: Option<Vec<Board>>) {
     match plan_opt {
         Some(plan) => {
-            println!("Found plan of {} steps", plan.len());
+            println!("Found plan of {} steps", plan.len() - 1);
             for board in plan {
                 println!("{}", board);
             }
@@ -44,12 +44,17 @@ fn main() {
             }
         }
     }
+    //todo: explore using command line parameters such as CLAP https://docs.rs/clap/latest/clap/
 
     let board = Board::new(tiles);
     println!("Using Manhattan Distance heuristic");
+    //todo: pass the heuristic as an extra argument
 
     println!("Starting A* search");
     process_plan(tiles::a_star_search(board));
+
+    // println!("Starting EHC search");
+    // process_plan(tiles::ehc_search(board));
 
     // println!("Starting Breadth First Search search");
     // process_plan(tiles::breadth_first_search(board));
