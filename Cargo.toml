@@ -1,12 +1,12 @@
 [package]
 name = "tiles"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Josef Bajada <josef.bajada@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-lazy_static = "1.4.0"
-binary-heap-plus = "0.2.0"
+lazy_static = "1.5.0"
+binary-heap-plus = "0.5.0"
 compare = "0.1.0"
