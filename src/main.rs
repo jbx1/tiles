@@ -47,16 +47,16 @@ fn main() {
     //todo: explore using command line parameters such as CLAP https://docs.rs/clap/latest/clap/
 
     let board = Board::new(tiles);
-    println!("Using Manhattan Distance heuristic");
-    //todo: pass the heuristic as an extra argument
 
-    println!("Starting A* search");
-    process_plan(tiles::a_star_search(board));
+    println!("Starting A* search with manhattan distance heuristic");
+    process_plan(tiles::a_star_search(board, tiles::manhattan_distance_heuristic));
 
-    // println!("Starting EHC search");
-    // process_plan(tiles::ehc_search(board));
+    println!("Starting Greedy Best First search");
+    process_plan(tiles::greedy_best_first_search(board, tiles::displaced_tiles_heuristic));
 
-    // println!("Starting Breadth First Search search");
-    // process_plan(tiles::breadth_first_search(board));
+    println!("Starting EHC search with manhattan distance heuristic");
+    process_plan(tiles::ehc_search(board, tiles::manhattan_distance_heuristic));
 
+    println!("Starting Breadth First Search");
+    process_plan(tiles::breadth_first_search(board));
 }

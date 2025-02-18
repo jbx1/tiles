@@ -51,7 +51,6 @@ pub struct Statistics {
 
 pub trait State: PartialEq + Eq + Hash + Sized + Copy + Debug {
     fn successors(&self) -> Vec<Self>;
-    fn h(&self) -> i32;
 }
 
 #[derive(Debug, Eq)]
@@ -61,14 +60,7 @@ enum Transition<S: State> {
 }
 
 impl<S: State> Transition<S> {
-    fn new(initial: Rc<S>, compute_heuristic : bool) -> Transition<S> {
-        let h = if compute_heuristic {
-            initial.h()
-        }
-        else {
-            0
-        };
-
+    fn new(initial: Rc<S>, h: i32) -> Transition<S> {
         Initial { state: initial, h }
     }
 
@@ -107,13 +99,7 @@ impl<S: State> Transition<S> {
         }
     }
 
-    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32, compute_heuristic: bool) -> Transition<S> {
-        let h = if compute_heuristic {
-            state.h()
-        } else {
-            parent.h()
-        };
-
+    fn successor(state: Rc<S>, parent: Rc<Transition<S>>, index: u32, h: i32) -> Transition<S> {
         Intermediate { state, g: parent.g() + 1, parent, index, h }
     }
 }
@@ -139,22 +125,42 @@ impl<S: State> PartialEq for Transition<S> {
     }
 }
 
-pub fn breadth_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+pub fn breadth_first_search<S: State, G: Fn(&S) -> bool>(initial: &S, goal: G) -> SearchResult<S>
+where S: State,
+      G: Fn(&S) -> bool
+{
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, SearchConfig::blind())
+    search(initial, blind_heuristic, goal, &mut queue, SearchConfig::blind())
 }
 
-pub fn ehc_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
-    let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, SearchConfig::ehc())
+#[inline(always)]
+fn blind_heuristic<S: State>(_: &S) -> i32 {
+    0
 }
 
-pub fn ehc_steepest_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+pub fn ehc_search<S, H, G>(initial: &S, heuristic: H, goal: G) -> SearchResult<S>
+where S: State,
+      H: Fn(&S) -> i32,
+      G: Fn(&S) -> bool
+{
     let mut queue = Fifo::new();
-    search(initial, goal, &mut queue, SearchConfig::ehc_steepest_ascent())
+    search(initial, heuristic, goal, &mut queue, SearchConfig::ehc())
 }
 
-pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+pub fn ehc_steepest_search<S, H, G>(initial: &S, heuristic: H, goal: G) -> SearchResult<S>
+where S: State,
+      H: Fn(&S) -> i32,
+      G: Fn(&S) -> bool
+{
+    let mut queue = Fifo::new();
+    search(initial, heuristic, goal, &mut queue, SearchConfig::ehc_steepest_ascent())
+}
+
+pub fn greedy_best_first_search<S, H, G>(initial: &S, heuristic: H, goal: G) -> SearchResult<S>
+where S: State,
+      H: Fn(&S) -> i32,
+      G: Fn(&S) -> bool
+{
 
     //greedy best first search only considers the heuristic value (h)
     let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
@@ -164,10 +170,14 @@ pub fn greedy_best_first_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: 
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue, SearchConfig::default())
+    search(initial, heuristic, goal, &mut queue, SearchConfig::default())
 }
 
-pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> SearchResult<S> {
+pub fn a_star_search<S, H, G>(initial: &S, heuristic: H, goal: G) -> SearchResult<S>
+where S: State,
+      H: Fn(&S) -> i32,
+      G: Fn(&S) -> bool
+{
     let mut queue = PriorityCmp::new(|s1: &Transition<S>, s2: &Transition<S>| {
         let s1_f = a_star_eval(s1);
         let s2_f = a_star_eval(s2);
@@ -178,7 +188,7 @@ pub fn a_star_search<S: State, F: Fn(&S) -> bool>(initial: &S, goal: F) -> Searc
             .then_with(|| s2.index().cmp(&s1.index()))
     });
 
-    search(initial, goal, &mut queue, SearchConfig::default())
+    search(initial, heuristic, goal, &mut queue, SearchConfig::default())
 }
 
 fn a_star_eval<S: State>(state_transition: &Transition<S>) -> i32 {
@@ -192,9 +202,10 @@ fn a_star_eval<S: State>(state_transition: &Transition<S>) -> i32 {
     }
 }
 
-fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) -> SearchResult<S>
+fn search<S, H, G, Q>(initial: &S, heuristic: H, goal: G, queue: &mut Q, config: SearchConfig) -> SearchResult<S>
     where S: State,
-          F: Fn(&S) -> bool,
+          H: Fn(&S) -> i32,
+          G: Fn(&S) -> bool,
           Q: Queue<Transition<S>>
 {
     let mut seen = HashMap::new();
@@ -205,10 +216,12 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
     let mut index: u32 = 0;
 
     let initial_state = Rc::new(*initial);
-    let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state),  config.compute_heuristic));
-    println!("Starting search with Initial h value {}", initial_transition.h());
+    let initial_h = heuristic(&initial_state);
+    let initial_transition = Rc::new(Transition::new(Rc::clone(&initial_state), initial_h));
+    let initial_h = heuristic(&initial_state);
+    println!("Starting search with Initial h value {}", initial_h);
 
-    let mut best_h = initial_transition.h();
+    let mut best_h = initial_h;
     if config.compute_heuristic {
         print!("Current best H: {:?} ", best_h);
     }
@@ -233,17 +246,17 @@ fn search<S, F, Q>(initial: &S, goal: F, queue: &mut Q, config: SearchConfig) ->
 
             if config.compute_heuristic && config.best_first_successors {
                 //todo: we are computing this again in the Transition twice, can we avoid it?
-                successors.sort_by(|a, b| a.h().partial_cmp(&b.h()).unwrap());
+                successors.sort_by(|a, b| heuristic(a).partial_cmp(&heuristic(b)).unwrap());
             }
 
             for successor_state in successors {
                 statistics.created += 1;
                 index += 1;
                 let successor_state_rc = Rc::new(successor_state);
-                let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index, config.compute_heuristic));
+                let current_h = heuristic(&successor_state);
+                let succ_transition = Rc::new(Transition::successor(Rc::clone(&successor_state_rc), Rc::clone(&transition), index, current_h));
                 seen.insert(successor_state_rc, Rc::clone(&succ_transition));
 
-                let current_h = succ_transition.h();
                 if current_h < best_h {
                     print!("{:?} ", current_h);
                     best_h = current_h;
@@ -306,14 +319,6 @@ mod tests {
         fn successors(&self) -> Vec<Self> {
             vec![TestState { value: self.value + 1 }, TestState { value: self.value + 2 }, TestState { value: self.value + 3 }]
         }
-
-        fn h(&self) -> i32 {
-            if GOAL < self.value {
-                i32::MAX
-            } else {
-                GOAL - self.value
-            }
-        }
     }
 
 
@@ -340,7 +345,7 @@ mod tests {
         let initial = TestState { value: 0 };
         println!("Starting EHC Search");
 
-        let result = ehc_search(&initial, |state| state.value == 5);
+        let result = ehc_search(&initial, |_| 0, |state| state.value == 5);
 
         assert!(result.plan.is_some());
 
@@ -358,7 +363,7 @@ mod tests {
         let initial = TestState { value: 0 };
         println!("Starting EHC Steepest Ascent Search");
 
-        let result = ehc_steepest_search(&initial, |state| state.value == 5);
+        let result = ehc_steepest_search(&initial, |_| 0, |state| state.value == 5);
 
         assert!(result.plan.is_some());
 
@@ -375,7 +380,7 @@ mod tests {
     fn test_greedy_best_first_search() {
         let initial = TestState { value: 0 };
         println!("Starting Greedy Best First Search");
-        let result = greedy_best_first_search(&initial, |state| state.value == 5);
+        let result = greedy_best_first_search(&initial, |_| 0, |state| state.value == 5);
         assert!(result.plan.is_some());
 
         let plan = result.plan.unwrap();
@@ -391,7 +396,7 @@ mod tests {
     fn test_a_star_search() {
         let initial = TestState { value: 0 };
         println!("Starting Greedy Best First Search");
-        let result = a_star_search(&initial, |state| state.value == 5);
+        let result = a_star_search(&initial, |_| 0, |state| state.value == 5);
         assert!(result.plan.is_some());
 
         let plan = result.plan.unwrap();

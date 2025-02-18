@@ -26,45 +26,56 @@ impl State for BoardState {
             .map(|board| BoardState::new(*board))
             .collect()
     }
-
-    fn h(&self) -> i32 {
-        //todo: make the heuristic configurable
-        self.board.manhattan_dist()
-//        self.board.displaced_tiles()
-    }
 }
 
 fn goal_check(candidate: &BoardState) -> bool {
     candidate.board == board::GOAL
 }
 
-pub fn breadth_first_search(board: Board) -> Option<Vec<Board>> {
+pub fn displaced_tiles_heuristic(board: &Board) -> i32 {
+    board.displaced_tiles()
+}
+
+pub fn manhattan_distance_heuristic(board: &Board) -> i32 {
+    board.manhattan_dist()
+}
+
+pub fn breadth_first_search(board: Board) -> Option<Vec<Board>>
+{
     let initial_state = BoardState::new(board);
     let result = search::breadth_first_search(&initial_state, goal_check);
     process_result(result)
 }
 
-pub fn ehc_search(board: Board) -> Option<Vec<Board>> {
+pub fn ehc_search<H>(board: Board, heuristic: H) -> Option<Vec<Board>>
+    where H: Fn(&Board) -> i32
+{
     let initial_state = BoardState::new(board);
-    let result = search::ehc_search(&initial_state, goal_check);
+    let result = search::ehc_search(&initial_state, |state| heuristic(&state.board), goal_check);
     process_result(result)
 }
 
-pub fn ehc_steepest_search(board: Board) -> Option<Vec<Board>> {
+pub fn ehc_steepest_search<H>(board: Board, heuristic: H) -> Option<Vec<Board>>
+    where H: Fn(&Board) -> i32
+{
     let initial_state = BoardState::new(board);
-    let result = search::ehc_steepest_search(&initial_state, goal_check);
+    let result = search::ehc_steepest_search(&initial_state, |state| heuristic(&state.board), goal_check);
     process_result(result)
 }
 
-pub fn greedy_best_first_search(board: Board) -> Option<Vec<Board>> {
+pub fn greedy_best_first_search<H>(board: Board, heuristic: H) -> Option<Vec<Board>>
+    where H: Fn(&Board) -> i32
+{
     let initial_state = BoardState::new(board);
-    let result = search::greedy_best_first_search(&initial_state, goal_check);
+    let result = search::greedy_best_first_search(&initial_state, |state| heuristic(&state.board), goal_check);
     process_result(result)
 }
 
-pub fn a_star_search(board: Board) -> Option<Vec<Board>> {
+pub fn a_star_search<H>(board: Board, heuristic: H) -> Option<Vec<Board>>
+    where H: Fn(&Board) -> i32
+{
     let initial_state = BoardState::new(board);
-    let result = search::a_star_search(&initial_state, goal_check);
+    let result = search::a_star_search(&initial_state, |state| heuristic(&state.board), goal_check);
     process_result(result)
 }
 
@@ -95,7 +106,7 @@ mod tests {
         let hard_board = Board::new([1, 2, 3, 4, 5, 6, 7, 0, 8]);
 
         println!("Starting A* search for hard board 1");
-        let result = a_star_search(hard_board);
+        let result = a_star_search(hard_board, displaced_tiles_heuristic);
 
         expect_plan(result, 2);
     }
@@ -126,7 +137,7 @@ mod tests {
         let hard_board = Board::new([8, 6, 7, 2, 5, 4, 3, 0, 1]);
 
         println!("Starting Greedy Best First search for hard board 1:\n{}", hard_board);
-        let result = greedy_best_first_search(hard_board);
+        let result = greedy_best_first_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 48);
     }
@@ -136,7 +147,7 @@ mod tests {
         let hard_board = Board::new([6, 4, 7, 8, 5, 0, 3, 2, 1]);
 
         println!("Starting Greedy Best first search for hard board 2:\n{}", hard_board);
-        let result = greedy_best_first_search(hard_board);
+        let result = greedy_best_first_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 48);
     }
@@ -147,7 +158,7 @@ mod tests {
         let hard_board = Board::new([8, 6, 7, 2, 5, 4, 3, 0, 1]);
 
         println!("Starting A* search for hard board 1:\n{}", hard_board);
-        let result = a_star_search(hard_board);
+        let result = a_star_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 32);
     }
@@ -157,7 +168,7 @@ mod tests {
         let hard_board = Board::new([6, 4, 7, 8, 5, 0, 3, 2, 1]);
 
         println!("Starting A* search for hard board 2:\n{}", hard_board);
-        let result = a_star_search(hard_board);
+        let result = a_star_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 32);
     }
@@ -169,7 +180,7 @@ mod tests {
         let hard_board = Board::new(tiles);
 
         println!("Starting EHC search for hard board 1:\n{}", hard_board);
-        let result = ehc_search(hard_board);
+        let result = ehc_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 46);
     }
@@ -181,7 +192,7 @@ mod tests {
         let hard_board = Board::new(tiles);
 
         println!("Starting EHC search for hard board 2:\n{}", hard_board);
-        let result = ehc_search(hard_board);
+        let result = ehc_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 46);
     }
@@ -193,7 +204,7 @@ mod tests {
         let hard_board = Board::new(tiles);
 
         println!("Starting EHC steepest search for hard board 1:\n{}", hard_board);
-        let result = ehc_steepest_search(hard_board);
+        let result = ehc_steepest_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 46);
     }
@@ -205,7 +216,7 @@ mod tests {
         let hard_board = Board::new(tiles);
 
         println!("Starting EHC steepest search for hard board 2:\n{}", hard_board);
-        let result = ehc_steepest_search(hard_board);
+        let result = ehc_steepest_search(hard_board, manhattan_distance_heuristic);
 
         expect_plan(result, 46);
     }
